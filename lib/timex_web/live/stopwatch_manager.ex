@@ -32,9 +32,11 @@ defmodule TimexWeb.StopwatchManager do
     {:noreply, %{state | st: Paused, timer: nil}}
   end
 
-  def handle_info(:tick_counting, %{st: Counting, mode: SWatch, ui_pid: ui, count: count} = state) do
+  def handle_info(:tick_counting, %{st: Counting, mode: mode, ui_pid: ui, count: count} = state) do
     count = Time.add(count, 10, :millisecond)
-    GenServer.cast(ui, {:set_time_display, Time.to_string(count) |> String.slice(3..-5)})
+    if mode == SWatch do
+      GenServer.cast(ui, {:set_time_display, Time.to_string(count) |> String.slice(3..-5)})
+    end
     {:noreply, %{state | st: Counting, count: count, timer: Process.send_after(self(), :tick_counting, 10)}}
   end
 

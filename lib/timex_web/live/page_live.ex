@@ -2,7 +2,7 @@ defmodule TimexWeb.PageLive do
   use TimexWeb, :live_view
 
   def mount(_params, _session, socket) do
-    # GenServer.start_link(TimexWeb.ClockManager, self())
+    GenServer.start_link(TimexWeb.ClockManager, self())
     GenServer.start_link(TimexWeb.StopwatchManager, self())
     # GenServer.start_link(TimexWeb.IndigloManager, self())
     {:ok, assign(socket, time: "12:00:00", indiglo: "white")}
