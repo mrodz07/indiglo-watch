@@ -3,6 +3,40 @@ defmodule TimexWeb.StopwatchManager do
 
   def init(ui) do
     :gproc.reg({:p, :l, :ui_event})
-    {:ok, %{ui_pid: ui, count: ~T[00:00:00.00]}}
+    {:ok, %{ui_pid: ui, count: ~T[00:00:00.0000], st: Paused, mode: Time, timer: nil}}
   end
+
+  def handle_info(:"bottom-left", %{mode: SWatch, ui_pid: ui} = state) do
+    count = ~T[00:00:00.0000]
+    GenServer.cast(ui, {:set_time_display, Time.to_string(count) |> String.slice(3..-3)})
+    {:noreply, %{state | count: count}}
+  end
+
+  def handle_info(:"top-left", %{mode: SWatch} = state) do
+    {:noreply, %{state | mode: Time}}
+  end
+  def handle_info(:"top-left", %{mode: Time, ui_pid: ui, count: count} = state) do
+    GenServer.cast(ui, {:set_time_display, Time.to_string(count) |> String.slice(3..-3)})
+    {:noreply, %{state | mode: SWatch}}
+  end
+
+  def handle_info(:"bottom-right", %{st: Paused, mode: SWatch, timer: timer} = state) do
+    if timer != nil, do: Process.cancel_timer(timer)
+    IO.puts "Paused -> Counting"
+    {:noreply, %{state | st: Counting, timer: Process.send_after(self(), :tick_counting, 10)}}
+  end
+
+  def handle_info(:"bottom-right", %{st: Counting, mode: SWatch, timer: timer} = state) do
+    if timer != nil, do: Process.cancel_timer(timer)
+    IO.inspect "Counting -> Paused"
+    {:noreply, %{state | st: Paused, timer: nil}}
+  end
+
+  def handle_info(:tick_counting, %{st: Counting, mode: SWatch, ui_pid: ui, count: count} = state) do
+    count = Time.add(count, 10, :millisecond)
+    GenServer.cast(ui, {:set_time_display, Time.to_string(count) |> String.slice(3..-5)})
+    {:noreply, %{state | st: Counting, count: count, timer: Process.send_after(self(), :tick_counting, 10)}}
+  end
+
+  def handle_info(_event, state), do: {:noreply, state}
 end
