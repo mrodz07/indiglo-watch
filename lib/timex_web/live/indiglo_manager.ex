@@ -30,10 +30,11 @@ defmodule TimexWeb.IndigloManager do
     GenServer.cast(ui, :unset_indiglo)
     if(cnt < 5) do
       timer = Process.send_after(self(), :AlarmOffToOn, 1000)
+      {:noreply, %{state | st: AlarmOff, timer: timer, cnt: cnt + 1}}
     else
       Process.cancel_timer(timer)
+      {:noreply, %{state | st: IndigloOff, timer: nil, cnt: 0}}
     end
-    {:noreply, %{state | st: AlarmOff, timer: timer, cnt: cnt + 1}}
   end
 
   def handle_info(:AlarmOffToOn, %{ui_pid: ui, st: AlarmOff, cnt: cnt, timer: timer} = state) do
