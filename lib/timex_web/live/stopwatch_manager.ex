@@ -40,5 +40,13 @@ defmodule TimexWeb.StopwatchManager do
     {:noreply, %{state | st: Counting, count: count, timer: Process.send_after(self(), :tick_counting, 10)}}
   end
 
+  def handle_info(:editing_mode, state) do
+    {:noreply, %{state | mode: Editing}}
+  end
+
+  def handle_info(:regular_mode, state) do
+    {:noreply, %{state | mode: Time}}
+  end
+
   def handle_info(_event, state), do: {:noreply, state}
 end

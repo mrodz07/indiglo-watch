@@ -41,6 +41,16 @@ defmodule TimexWeb.PageLive do
     {:noreply, assign(socket, indiglo: "white")}
   end
 
+  def handle_cast(:editing_mode, socket) do
+    :gproc.send({:p, :l, :ui_event}, :editing_mode)
+    {:noreply, socket}
+  end
+
+  def handle_cast(:regular_mode, socket) do
+    :gproc.send({:p, :l, :ui_event}, :regular_mode)
+    {:noreply, socket}
+  end
+
   def handle_cast(:start_alarm, socket) do
     :gproc.send({:p, :l, :ui_event}, :start_alarm)
     {:noreply, socket}
