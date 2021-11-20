@@ -6,44 +6,72 @@ defmodule TimexWeb.IndigloManager do
     {:ok, %{ui_pid: ui, st: IndigloOff, timer: nil, cnt: 0}}
   end
 
-  def handle_info(:"top-right", %{st: IndigloOff, ui_pid: ui} = state) do
-    GenServer.cast(ui, :set_indiglo)
-    {:noreply, %{state | st: IndigloOn}}
+  # Modo normal
+  def handle_info(:"top-right", %{st: IndigloOff, timer: nil} = state) do
+    {:noreply, %{state | timer: Process.send_after(self(), :indiglo_turn_on, 100)}}
   end
 
-  def handle_info(:"top-right", %{st: IndigloOn} = state) do
-    {:noreply, %{state | timer: Process.send_after(self(), :unset_indiglo, 2000)}}
+  def handle_info(:"top-right", %{st: IndigloOn, timer: nil} = state) do
+    {:noreply, %{state | timer: Process.send_after(self(), :indiglo_turn_off, 2000)}}
   end
 
-  def handle_info(:unset_indiglo, %{ui_pid: ui, st: IndigloOn} = state) do
+  # Las siguientes dos declaraciones son para evitar que el boton se presione indiscriminadamente y se pueda mandar una llamada a :indiglo_turn_on cuando se tiene el st:IndigloOn y viceversa
+  def handle_info(:"top-right", %{st: IndigloOn, timer: timer} = state) do
+    Process.cancel_timer(timer)
+    {:noreply, %{state | timer: nil}}
+  end
+
+  def handle_info(:"top-right", %{st: IndigloOff, timer: timer} = state) do
+    Process.cancel_timer(timer)
+    {:noreply, %{state | timer: nil}}
+  end
+
+  def handle_info(:indiglo_turn_off, %{ui_pid: ui, timer: timer, st: IndigloOn} = state) do
     GenServer.cast(ui, :unset_indiglo)
     {:noreply, %{state | st: IndigloOff, timer: nil}}
   end
 
-  def handle_info(:unset_indiglo, %{st: AlarmOn, ui_pid: ui, cnt: 5} = state) do 
+  def handle_info(:indiglo_turn_on, %{ui_pid: ui, timer: timer ,st: IndigloOff} = state) do
+    GenServer.cast(ui, :set_indiglo)
+    {:noreply, %{state | st: IndigloOn, timer: nil}}
+  end
+
+  # Se apaga el indiglo si se enciende el modo alarma
+  def handle_info(:start_alarm, %{ui_pid: ui, cnt: cnt, timer: timer, st: IndigloOn} = state) do 
+    if timer, do: Process.cancel_timer(timer)
+    GenServer.cast(ui, :unset_indiglo)
+    {:noreply, %{state | st: AlarmOff, timer: Process.send_after(self(), :indiglo_turn_on, 1000)}}
+  end
+
+  # Modo alarma
+  def handle_info(:start_alarm, %{cnt: cnt, timer: timer, st: st} = state) do 
+    if timer, do: Process.cancel_timer(timer)
+    {:noreply, %{state | st: AlarmOff, timer: Process.send_after(self(), :indiglo_turn_on, 1000)}}
+  end
+
+  def handle_info(:indiglo_turn_on, %{ui_pid: ui, cnt: cnt, st: AlarmOff} = state) do
+    GenServer.cast(ui, :set_indiglo)
+    {:noreply, %{state | st: AlarmOn, cnt: cnt + 1, timer: Process.send_after(self(), :indiglo_turn_off, 1000)}}
+  end
+
+  # Acaba alarma si cnt = 5
+  def handle_info(:indiglo_turn_off, %{st: AlarmOn, ui_pid: ui, timer: timer, cnt: 5} = state) do 
+    if timer, do: Process.cancel_timer(timer)
     GenServer.cast(ui, :unset_indiglo)
     {:noreply, %{state | st: IndigloOff, timer: nil, cnt: 0}}
   end
 
-  def handle_info(:unset_indiglo, %{ui_pid: ui, st: AlarmOn, cnt: cnt} = state) do
+  def handle_info(:indiglo_turn_off, %{ui_pid: ui, st: AlarmOn, cnt: cnt} = state) do
     GenServer.cast(ui, :unset_indiglo)
-    {:noreply, %{state | st: AlarmOff, cnt: cnt + 1, timer: Process.send_after(self(), :set_indiglo, 1000)}}
+    {:noreply, %{state | st: AlarmOff, cnt: cnt + 1, timer: Process.send_after(self(), :indiglo_turn_on, 1000)}}
   end
 
-  def handle_info(:set_indiglo, %{ui_pid: ui, cnt: cnt, st: AlarmOff} = state) do
-    GenServer.cast(ui, :set_indiglo)
-    {:noreply, %{state | st: AlarmOn, cnt: cnt + 1, timer: Process.send_after(self(), :unset_indiglo, 1000)}}
-  end
-
-  def handle_info(:start_alarm, %{cnt: cnt, timer: timer, st: st} = state) do 
-    {:noreply, %{state | st: AlarmOff, timer: Process.send_after(self(), :set_indiglo, 1000)}}
-  end
-
-  def handle_info(event, state), do: {:noreply, state}
-
-  #def handle_info(:regular_mode, state), do: {:noreply, state}
-  #def handle_info(:editing_mode, state), do: {:noreply, state}
-  #def handle_info(:"top-left", state), do: {:noreply, state}
-  #def handle_info(:"bottom-left", state), do: {:noreply, state}
-  #def handle_info(:"bottom-right", state), do: {:noreply, state}
+  # No se hace nada si se 'castea' :regular_mode o :editing_mode ya que tienen que ver con stopwatch_manager. Los demás handles son porque ninguno de esos botones se ocupa en este modo
+  def handle_info(:"top-right", %{st: AlarmOff} = state), do: {:noreply, state}
+  def handle_info(:"top-right", %{st: AlarmOn} = state), do: {:noreply, state}
+  def handle_info(:regular_mode, state), do: {:noreply, state}
+  def handle_info(:editing_mode, state), do: {:noreply, state}
+  def handle_info(:"top-left", state), do: {:noreply, state}
+  def handle_info(:"bottom-left", state), do: {:noreply, state}
+  def handle_info(:"bottom-right", state), do: {:noreply, state}
 end

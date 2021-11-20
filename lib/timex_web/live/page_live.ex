@@ -24,6 +24,7 @@ defmodule TimexWeb.PageLive do
   end
 
   def handle_event(event, _payload, socket) do
+    IO.inspect(event)
     :gproc.send({:p, :l, :ui_event}, String.to_atom(event))
     {:noreply, socket}
   end
@@ -40,16 +41,19 @@ defmodule TimexWeb.PageLive do
     {:noreply, assign(socket, indiglo: "white")}
   end
 
+  # Indica a stopwatch_manager que pare sus funciones
   def handle_cast(:editing_mode, socket) do
     :gproc.send({:p, :l, :ui_event}, :editing_mode)
     {:noreply, socket}
   end
 
+  # Reanuda las funciones de stopwatch_manager
   def handle_cast(:regular_mode, socket) do
     :gproc.send({:p, :l, :ui_event}, :regular_mode)
     {:noreply, socket}
   end
 
+  # Inicia alarma en indiglo manager
   def handle_cast(:start_alarm, socket) do
     :gproc.send({:p, :l, :ui_event}, :start_alarm)
     {:noreply, socket}

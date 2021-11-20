@@ -31,14 +31,19 @@ defmodule TimexWeb.StopwatchManager do
   end
 
   def handle_info(:tick_counting, %{st: Counting, mode: mode, ui_pid: ui, count: count} = state) do
-    count = Time.add(count, 10, :millisecond)
     if mode == SWatch do
       GenServer.cast(ui, {:set_time_display, Time.to_string(count) |> String.slice(3..-5)})
     end
-    {:noreply, %{state | st: Counting, count: count, timer: Process.send_after(self(), :tick_counting, 10)}}
+    {:noreply, %{state | st: Counting, count: Time.add(count, 10, :millisecond), timer: Process.send_after(self(), :tick_counting, 10)}}
   end
 
-  def handle_info(:editing_mode, state) do
+  # Una declaracion es por si se pasa a :editing_mode y no se esta en :tick_counting, la otra es por si se está
+  def handle_info(:editing_mode, %{timer: nil} = state) do
+    {:noreply, %{state | mode: Editing}}
+  end
+
+  def handle_info(:editing_mode, %{timer: timer} = state) do
+    Process.cancel_timer(timer)
     {:noreply, %{state | mode: Editing}}
   end
 
@@ -46,11 +51,12 @@ defmodule TimexWeb.StopwatchManager do
     {:noreply, %{state | mode: Time, st: Paused}}
   end
 
-  def handle_info(event, state), do: {:noreply, state}
-
-  #def handle_info(:"top-right", state), do: {:noreply, state}
-  #def handle_info(:"bottom-left", %{mode: Time} = state), do: {:noreply, state}
-  #def handle_info(:"bottom-right", %{mode: Time} = state), do: {:noreply, state}
-  #def handle_info(:"bottom-right", %{mode: Editing} = state), do: {:noreply, state}
-  #def handle_info(:"bottom-left", %{mode: Editing} = state), do: {:noreply, state}
+  # Se declara para no hacer nada en el 'casteo' de :start_alarm, porque "top-right" no se usa en este modo y parar los botones cuando se está en ciertos estados
+  def handle_info(:start_alarm, state), do: {:noreply, state}
+  def handle_info(:"top-right", state), do: {:noreply, state}
+  def handle_info(:"top-left", %{mode: Editing} = state), do: {:noreply, state}
+  def handle_info(:"bottom-right", %{mode: Editing} = state), do: {:noreply, state}
+  def handle_info(:"bottom-left", %{mode: Editing} = state), do: {:noreply, state}
+  def handle_info(:"bottom-left", %{mode: Time} = state), do: {:noreply, state}
+  def handle_info(:"bottom-right", %{mode: Time} = state), do: {:noreply, state}
 end

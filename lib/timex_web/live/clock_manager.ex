@@ -1,6 +1,7 @@
 defmodule TimexWeb.ClockManager do
   use GenServer
 
+  # Inicializamos todas las variables que usaremos a lo largo del programa en 0 o nil
   def init(ui) do
     :gproc.reg({:p, :l, :ui_event})
     {_, now} = :calendar.local_time()
@@ -18,34 +19,48 @@ defmodule TimexWeb.ClockManager do
     {:noreply, %{state | time: Time.add(time, 1), timer: Process.send_after(self(), :working, 1000)}}
   end
 
+  # Working que corre cuando cambiamos a modo SWatch y no imprime en pantalla
   def handle_info(:working, %{mode: mode, time: time} = state), do: {:noreply, %{state | time: Time.add(time, 1), timer: Process.send_after(self(), :working, 1000)}}
 
+  # Waiting en statechart
+  # Cancelamos timer que lleva a :working y si pasan 250ms pasamos a la transición :waiting_to_time_editing_mode
   def handle_info(:"bottom-right", %{ui_pid: ui, mode: Time, timer: timer} = state) do 
     Process.cancel_timer(timer)
-    {:noreply, %{state | mode: TEditing, selection: Hour, show: true, timer: Process.send_after(self(), :time_editing_mode, 250)}}
+    GenServer.cast(ui, :editing_mode)
+    {:noreply, %{state | mode: TEditing, timer: Process.send_after(self(), :waiting_to_time_editing_mode, 250)}}
   end
 
+  # Si volvemos a presionar, estamos en waiting y no han pasado los 250ms, nos regresa al modo working
   def handle_info(:"bottom-right", %{ui_pid: ui, mode: TEditing, timer: timer, selection: nil, show: nil, count: 0} = state) do 
     Process.cancel_timer(timer)
+    GenServer.cast(ui, :regular_mode)
     {:noreply, %{state | mode: Time, timer: Process.send_after(self(), :working, 250)}} 
   end
 
+  # Inicializamos modo de edición de tiempo (junto con sus variables)
+  def handle_info(:waiting_to_time_editing_mode, %{ui_pid: ui, mode: TEditing, timer: timer} = state) do
+    {:noreply, %{state | selection: Hour, show: true, timer: Process.send_after(self(), :time_editing_mode, 250)}}
+  end
+
+  # Waiting en statechart para alarma
   def handle_info(:"bottom-left", %{ui_pid: ui, mode: Time, timer: timer} = state) do 
     Process.cancel_timer(timer)
-    {:noreply, %{state | mode: AEditing, selection: Hour, show: true, timer: Process.send_after(self(), :alarm_editing_mode, 250)}}
+    GenServer.cast(ui, :editing_mode)
+    {:noreply, %{state | mode: AEditing, timer: Process.send_after(self(), :waiting_to_alarm_editing_mode, 250)}}
   end
 
   def handle_info(:"bottom-left", %{ui_pid: ui, mode: AEditing, timer: timer, selection: nil, show: nil, count: 0} = state) do 
     Process.cancel_timer(timer)
+    GenServer.cast(ui, :regular_mode)
     {:noreply, %{state | mode: Time, timer: Process.send_after(self(), :working, 250)}} 
   end
 
-  #def handle_info(:time_editing_mode, %{ui_pid: ui, mode: TEditing, count: 0, timer: timer} = state) do 
-  #  GenServer.cast(ui, :editing_mode)
-  #  {:noreply, %{state | timer: Process.send_after(self(), :time_editing_mode, 250)}} 
-  #end
+  def handle_info(:waiting_to_alarm_editing_mode, %{ui_pid: ui, mode: AEditing, timer: timer} = state) do
+    {:noreply, %{state | selection: Hour, show: true, timer: Process.send_after(self(), :alarm_editing_mode, 250)}}
+  end
 
-  def handle_info(:time_editing_mode, %{ui_pid: ui, mode: TEditing, time: time, selection: sel, show: shw, count: 20, timer: timer} = state) do 
+  # Si la cuenta es igual a 20 regresamos a :working
+  def handle_info(:time_editing_mode, %{ui_pid: ui, mode: TEditing, selection: sel, show: shw, count: 20, timer: timer} = state) do 
     GenServer.cast(ui, :regular_mode)
     {:noreply, %{state | mode: Time, count: 0, selection: nil, show: nil, timer: Process.send_after(self(), :working, 250)}}
   end
@@ -65,7 +80,11 @@ defmodule TimexWeb.ClockManager do
     {:noreply, %{state | count: 0, show: true, time: increase_selection(time, sel)}}
   end
 
-  def handle_info(:alarm_editing_mode, %{ui_pid: ui, mode: AEditing, alarm: alarm, selection: sel, show: shw, count: 20, timer: timer} = state), do: {:noreply, %{state | mode: Time, count: 0, selection: nil, show: nil, timer: Process.send_after(self(), :working, 250)}}
+  # Si la cuenta es igual a 20 regresamos a :working
+  def handle_info(:alarm_editing_mode, %{ui_pid: ui, mode: AEditing, selection: sel, show: shw, count: 20, timer: timer} = state) do 
+    GenServer.cast(ui, :regular_mode)
+    {:noreply, %{state | mode: Time, count: 0, selection: nil, show: nil, timer: Process.send_after(self(), :working, 250)}}
+  end
 
   def handle_info(:alarm_editing_mode, %{ui_pid: ui, mode: AEditing, alarm: alarm, selection: sel, show: shw, count: count, timer: timer} = state) do
       GenServer.cast(ui, {:set_time_display, format(%{time: alarm, selection: sel, show: shw})})
@@ -114,8 +133,10 @@ defmodule TimexWeb.ClockManager do
     time <> "  "
   end
 
+  # Necesarios para que en los modos de :editing, :regular y :start_alarm no puedan usarse los botones ni se haga nada en particular
   def handle_info(:start_alarm, state), do: {:noreply, state}
   def handle_info(:regular_mode, state), do: {:noreply, state}
+  def handle_info(:editing_mode, state), do: {:noreply, state}
   def handle_info(:"top-right", state), do: {:noreply, state}
   def handle_info(:"top-left", %{mode: TEditing} = state), do: {:noreply, state}
   def handle_info(:"top-left", %{mode: AEditing} = state), do: {:noreply, state}
