@@ -1,18 +1,16 @@
-# Timex
+# Reloj indiglo
 
-To start your Phoenix server:
+Simulación de un reloj hecho con elixir (lenguaje funcional). Usé el 'framework' Phoenix para realizarlo. 
 
-  * Setup the project with `mix setup`
-  * Start Phoenix endpoint with `mix phx.server`
+## Instrucciones para correr
 
-Now you can visit [`localhost:4000`](http://localhost:4000) from your browser.
+Para comenzar el servidor de phoenix
 
-Ready to run in production? Please [check our deployment guides](https://hexdocs.pm/phoenix/deployment.html).
+  - Prepara el proyecto con el comando `mix setup`
+  - Inicia el servidor de Phoenix con `mix phx.server`
 
-## Learn more
+Visita [`localhost:4000`](http://localhost:4000). 
 
-  * Official website: https://www.phoenixframework.org/
-  * Guides: https://hexdocs.pm/phoenix/overview.html
-  * Docs: https://hexdocs.pm/phoenix
-  * Forum: https://elixirforum.com/c/phoenix-forum
-  * Source: https://github.com/phoenixframework/phoenix
+## Ligas
+
+- [Phoenix framework](https://www.phoenixframework.org/)
